@@ -24,10 +24,10 @@ jobs:
 
       - name: Run script
         env:
-          TENANT_ID: ${{ secrets.TENANT_ID }}
-          CLIENT_ID: ${{ secrets.CLIENT_ID }}
-          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-          SMTP_EMAIL: ${{ secrets.SMTP_EMAIL }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
+          TENANT_ID: ${{ vars.TENANT_ID }}
+          CLIENT_ID: ${{ vars.CLIENT_ID }}
+          CLIENT_SECRET: ${{ vars.CLIENT_SECRET }}
+          SMTP_EMAIL: ${{ vars.SMTP_EMAIL }}
+          SMTP_PASSWORD: ${{ vars.SMTP_PASSWORD }}
+          RECEIVER_EMAIL: ${{ vars.RECEIVER_EMAIL }}
         run: python azure_logs.py
