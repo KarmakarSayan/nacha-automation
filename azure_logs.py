@@ -24,7 +24,9 @@ credential = ClientSecretCredential(
     client_id=client_id,
     client_secret=client_secret
 )
-
+print(sender_email)
+print(password)
+print(receiver_email)
 client = LogsQueryClient(credential)
 
 # ----------- TIME RANGE (LAST 24 HOURS UTC) -----------
