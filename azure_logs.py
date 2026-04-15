@@ -45,7 +45,7 @@ dependencies
 | where timestamp between (datetime({start_utc_str}) .. datetime({end_utc_str}))
 | where name == "POST /ACHCheckPrescreen/GetReport"
 | where success != true
-| project name, appId, target, success, resultCode, timestamp
+| project name, appId, target, success, resultCode, ["TimeStamp(UTC)"] = timestamp
 """
 
 query_2 = f"""
