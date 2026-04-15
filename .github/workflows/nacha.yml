@@ -36,6 +36,6 @@ jobs:
 
           # -------- Email --------
           SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
-          RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
+          RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAILS }}
 
         run: python azure_logs.py
