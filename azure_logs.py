@@ -5,6 +5,7 @@ from azure.monitor.query import LogsQueryClient
 from datetime import datetime, timedelta, timezone
 import pandas as pd
 import os
+from openpyxl.utils import get_column_letter
 
 # ================================
 # ----------- TENANT A (AZURE LOGS)
@@ -89,7 +90,7 @@ df1 = remove_timezone(df1)
 df2 = remove_timezone(df2)
 
 # ================================
-# ----------- SAVE EXCEL
+# ----------- SAVE EXCEL (FIXED)
 # ================================
 
 folder_path = "Nacha_Daily_reports"
@@ -101,6 +102,33 @@ file_path = os.path.join(folder_path, f"Nacha-{today_date}.xlsx")
 with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
     df1.to_excel(writer, sheet_name="Failures", index=False)
     df2.to_excel(writer, sheet_name="Summary", index=False)
+
+    workbook = writer.book
+
+    # -------- FORMAT FAILURES SHEET --------
+    sheet1 = writer.sheets["Failures"]
+
+    for col_idx, col in enumerate(df1.columns, 1):
+        max_length = max(
+            df1[col].astype(str).map(len).max(),
+            len(col)
+        )
+        sheet1.column_dimensions[get_column_letter(col_idx)].width = max_length + 2
+
+    # Fix timestamp column format (Column F)
+    for cell in sheet1["F"]:
+        if cell.row != 1:
+            cell.number_format = "yyyy-mm-dd hh:mm:ss"
+
+    # -------- FORMAT SUMMARY SHEET --------
+    sheet2 = writer.sheets["Summary"]
+
+    for col_idx, col in enumerate(df2.columns, 1):
+        max_length = max(
+            df2[col].astype(str).map(len).max(),
+            len(col)
+        )
+        sheet2.column_dimensions[get_column_letter(col_idx)].width = max_length + 2
 
 print(f"\n Excel file generated: {file_path}")
 
@@ -115,7 +143,6 @@ client_secret_B = os.getenv("MAIL_CLIENT_SECRET")
 sender_email = os.getenv("SENDER_EMAIL")
 receiver_emails = os.getenv("RECEIVER_EMAILS")
 
-# Convert comma-separated emails to list
 email_list = [email.strip() for email in receiver_emails.split(",")]
 
 to_recipients = [
