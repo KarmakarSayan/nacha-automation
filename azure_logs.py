@@ -47,7 +47,6 @@ dependencies
 | where name == "POST /ACHCheckPrescreen/GetReport"
 | where success != true
 | project name, appId, target, success, resultCode, ["TimeStamp(UTC)"] = timestamp
-| order by timestamp desc
 """
 
 query_2 = f"""
