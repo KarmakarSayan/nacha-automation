@@ -2,7 +2,7 @@ name: NACHA Daily Report
 
 on:
   schedule:
-    - cron: '0 3 * * *'   # Runs daily at 3 AM UTC
+    - cron: '0 14 * * *'   # Runs daily at 7:30 PM IST
   workflow_dispatch:
 
 jobs:
