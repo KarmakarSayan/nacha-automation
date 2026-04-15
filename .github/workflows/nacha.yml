@@ -3,7 +3,7 @@ name: NACHA Daily Report
 on:
   schedule:
     - cron: '0 3 * * *'   # Runs daily at 3 AM UTC
-  workflow_dispatch:      # Manual run button
+  workflow_dispatch:
 
 jobs:
   run-script:
@@ -20,14 +20,22 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install azure-identity azure-monitor-query pandas openpyxl
+          pip install azure-identity azure-monitor-query pandas openpyxl requests
 
       - name: Run Script
         env:
-          TENANT_ID: ${{ vars.TENANT_ID }}
-          CLIENT_ID: ${{ vars.CLIENT_ID }}
-          CLIENT_SECRET: ${{ vars.CLIENT_SECRET }}
-          SMTP_EMAIL: ${{ vars.SMTP_EMAIL }}
-          SMTP_PASSWORD: ${{ vars.SMTP_PASSWORD }}
-          RECEIVER_EMAIL: ${{ vars.RECEIVER_EMAIL }}
+          # -------- Tenant A (Azure Logs) --------
+          TENANT_ID_A: ${{ secrets.TENANT_ID_A }}
+          CLIENT_ID_A: ${{ secrets.CLIENT_ID_A }}
+          CLIENT_SECRET_A: ${{ secrets.CLIENT_SECRET_A }}
+
+          # -------- Tenant B (Graph Email) --------
+          MAIL_TENANT_ID: ${{ secrets.MAIL_TENANT_ID }}
+          MAIL_CLIENT_ID: ${{ secrets.MAIL_CLIENT_ID }}
+          MAIL_CLIENT_SECRET: ${{ secrets.MAIL_CLIENT_SECRET }}
+
+          # -------- Email --------
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+          RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
+
         run: python azure_logs.py
