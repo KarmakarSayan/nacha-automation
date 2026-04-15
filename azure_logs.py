@@ -51,9 +51,9 @@ dependencies
 """
 
 query_2 = f"""
-dependencies
+union isfuzzy=true dependencies
 | where timestamp between (datetime({start_utc_str}) .. datetime({end_utc_str}))
-| where name == "POST /ACHCheckPrescreen/GetReport"
+| where name in ("POST /ACHCheckPrescreen/GetReport")
 | summarize 
     SuccessCount = countif(success == true),
     FailureCount = countif(success == false),
