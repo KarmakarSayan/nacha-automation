@@ -113,7 +113,15 @@ client_id_B = os.getenv("MAIL_CLIENT_ID")
 client_secret_B = os.getenv("MAIL_CLIENT_SECRET")
 
 sender_email = os.getenv("SENDER_EMAIL")
-receiver_email = os.getenv("RECEIVER_EMAIL")
+receiver_emails = os.getenv("RECEIVER_EMAILS")
+
+# Convert comma-separated emails to list
+email_list = [email.strip() for email in receiver_emails.split(",")]
+
+to_recipients = [
+    {"emailAddress": {"address": email}}
+    for email in email_list
+]
 
 credential_B = ClientSecretCredential(
     tenant_id=tenant_id_B,
@@ -144,9 +152,7 @@ Please find attached the NACHA daily report for {today_date} UTC.
 Regards,
 Sayan Karmakar"""
         },
-        "toRecipients": [
-            {"emailAddress": {"address": receiver_email}}
-        ],
+        "toRecipients": to_recipients,
         "attachments": [
             {
                 "@odata.type": "#microsoft.graph.fileAttachment",
@@ -165,6 +171,6 @@ headers = {
 response = requests.post(url, headers=headers, json=email_body)
 
 if response.status_code == 202:
-    print(" Email sent via Graph API!")
+    print(" Email sent !")
 else:
     print(" Email failed:", response.status_code, response.text)
