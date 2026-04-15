@@ -1,35 +1,33 @@
-import smtplib
-from email.message import EmailMessage
+import requests
+import base64
 from azure.identity import ClientSecretCredential
 from azure.monitor.query import LogsQueryClient
 from datetime import datetime, timedelta, timezone
 import pandas as pd
 import os
 
-# ----------- AZURE CONFIG -----------
+# ================================
+# ----------- TENANT A (AZURE LOGS)
+# ================================
+
 resource_id = "/subscriptions/e55e5916-f6a5-42b6-b4e4-8e5de225fba0/resourceGroups/rg-nacha-csp-prod/providers/Microsoft.Insights/components/appi-nacha-csp-prod"
 
-tenant_id = os.getenv("TENANT_ID")
-client_id = os.getenv("CLIENT_ID")
-client_secret = os.getenv("CLIENT_SECRET")
+tenant_id_A = os.getenv("TENANT_ID_A")
+client_id_A = os.getenv("CLIENT_ID_A")
+client_secret_A = os.getenv("CLIENT_SECRET_A")
 
-# ----------- SMTP CONFIG -----------
-sender_email = os.getenv("SMTP_EMAIL")
-password = os.getenv("SMTP_PASSWORD")
-receiver_email = os.getenv("RECEIVER_EMAIL")
-
-# ----------- AUTHENTICATION -----------
-credential = ClientSecretCredential(
-    tenant_id=tenant_id,
-    client_id=client_id,
-    client_secret=client_secret
+credential_A = ClientSecretCredential(
+    tenant_id=tenant_id_A,
+    client_id=client_id_A,
+    client_secret=client_secret_A
 )
-print(sender_email)
-print(password)
-print(receiver_email)
-client = LogsQueryClient(credential)
 
-# ----------- TIME RANGE (LAST 24 HOURS UTC) -----------
+client = LogsQueryClient(credential_A)
+
+# ================================
+# ----------- TIME RANGE
+# ================================
+
 end_utc = datetime.now(timezone.utc)
 start_utc = end_utc - timedelta(hours=24)
 
@@ -38,16 +36,18 @@ end_utc_str = end_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 print(f"\nUTC Window: {start_utc} → {end_utc}")
 
-# ----------- QUERY 1 (FAILURES) -----------
+# ================================
+# ----------- QUERIES
+# ================================
+
 query_1 = f"""
 dependencies
 | where timestamp between (datetime({start_utc_str}) .. datetime({end_utc_str}))
 | where name == "POST /ACHCheckPrescreen/GetReport"
 | where success != true
-| project name, appId, target, success, resultCode, ["TimeStamp(UTC)"] = timestamp
+| project name, appId, target, success, resultCode, timestamp
 """
 
-# ----------- QUERY 2 (SUMMARY) -----------
 query_2 = f"""
 dependencies
 | where timestamp between (datetime({start_utc_str}) .. datetime({end_utc_str}))
@@ -59,51 +59,44 @@ dependencies
 | extend SuccessRate = round((SuccessCount * 100.0) / TotalCount, 2)
 """
 
-# ----------- RESPONSE TO DATAFRAME -----------
+# ================================
+# ----------- HELPERS
+# ================================
+
 def response_to_df(response):
     for table in response.tables:
         columns = [col.name if hasattr(col, "name") else col for col in table.columns]
-        rows = table.rows
-        return pd.DataFrame(rows, columns=columns)
+        return pd.DataFrame(table.rows, columns=columns)
     return pd.DataFrame()
 
-# ----------- REMOVE TIMEZONE -----------
 def remove_timezone(df):
     for col in df.columns:
         if pd.api.types.is_datetime64_any_dtype(df[col]):
-            try:
-                df[col] = df[col].dt.tz_localize(None)
-            except:
-                df[col] = df[col].apply(
-                    lambda x: x.replace(tzinfo=None) if pd.notnull(x) else x
-                )
+            df[col] = df[col].apply(lambda x: x.replace(tzinfo=None) if pd.notnull(x) else x)
     return df
 
-# ----------- RUN QUERIES -----------
+# ================================
+# ----------- RUN QUERIES
+# ================================
+
 print("\nRunning Query 1...")
-response1 = client.query_resource(resource_id, query_1, timespan=(start_utc, end_utc))
-df1 = response_to_df(response1)
+df1 = response_to_df(client.query_resource(resource_id, query_1, timespan=(start_utc, end_utc)))
 
 print("\nRunning Query 2...")
-response2 = client.query_resource(resource_id, query_2, timespan=(start_utc, end_utc))
-df2 = response_to_df(response2)
+df2 = response_to_df(client.query_resource(resource_id, query_2, timespan=(start_utc, end_utc)))
 
-# ----------- CLEAN DATA -----------
 df1 = remove_timezone(df1)
 df2 = remove_timezone(df2)
 
-# ----------- SAVE EXCEL -----------
+# ================================
+# ----------- SAVE EXCEL
+# ================================
+
 folder_path = "Nacha_Daily_reports"
-if not os.path.exists(folder_path):
-    os.makedirs(folder_path)
+os.makedirs(folder_path, exist_ok=True)
 
 today_date = datetime.now().strftime("%Y-%m-%d")
 file_path = os.path.join(folder_path, f"Nacha-{today_date}.xlsx")
-
-counter = 1
-while os.path.exists(file_path):
-    file_path = os.path.join(folder_path, f"Nacha-{today_date}_{counter}.xlsx")
-    counter += 1
 
 with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
     df1.to_excel(writer, sheet_name="Failures", index=False)
@@ -111,39 +104,67 @@ with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
 
 print(f"\n Excel file generated: {file_path}")
 
-# ----------- SEND EMAIL (SMTP) -----------
+# ================================
+# ----------- TENANT B (GRAPH EMAIL)
+# ================================
 
-msg = EmailMessage()
-msg["Subject"] = f"NACHA Daily Report - {today_date}"
-msg["From"] = sender_email
-msg["To"] = receiver_email
+tenant_id_B = os.getenv("MAIL_TENANT_ID")
+client_id_B = os.getenv("MAIL_CLIENT_ID")
+client_secret_B = os.getenv("MAIL_CLIENT_SECRET")
 
-msg.set_content(
-    f"""Hi Team,
+sender_email = os.getenv("SENDER_EMAIL")
+receiver_email = os.getenv("RECEIVER_EMAIL")
 
-Please find attached the NACHA daily report for {today_date} UTC .
+credential_B = ClientSecretCredential(
+    tenant_id=tenant_id_B,
+    client_id=client_id_B,
+    client_secret=client_secret_B
+)
+
+token = credential_B.get_token("https://graph.microsoft.com/.default").token
+
+# ================================
+# ----------- EMAIL SEND
+# ================================
+
+url = f"https://graph.microsoft.com/v1.0/users/{sender_email}/sendMail"
+
+with open(file_path, "rb") as f:
+    file_content = base64.b64encode(f.read()).decode()
+
+email_body = {
+    "message": {
+        "subject": f"NACHA Daily Report - {today_date}",
+        "body": {
+            "contentType": "Text",
+            "content": f"""Hi Team,
+
+Please find attached the NACHA daily report for {today_date} UTC.
 
 Regards,
 Sayan Karmakar"""
-)
+        },
+        "toRecipients": [
+            {"emailAddress": {"address": receiver_email}}
+        ],
+        "attachments": [
+            {
+                "@odata.type": "#microsoft.graph.fileAttachment",
+                "name": os.path.basename(file_path),
+                "contentBytes": file_content
+            }
+        ]
+    }
+}
 
-# Attach Excel file
-with open(file_path, "rb") as f:
-    msg.add_attachment(
-        f.read(),
-        maintype="application",
-        subtype="vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        filename=os.path.basename(file_path)
-    )
+headers = {
+    "Authorization": f"Bearer {token}",
+    "Content-Type": "application/json"
+}
 
-# Send email
-try:
-    with smtplib.SMTP("smtp.office365.com", 587) as server:
-        server.starttls()
-        server.login(sender_email, password)
-        server.send_message(msg)
+response = requests.post(url, headers=headers, json=email_body)
 
-    print(" Email sent successfully!")
-
-except Exception as e:
-    print(" Email failed:", str(e))
+if response.status_code == 202:
+    print(" Email sent via Graph API!")
+else:
+    print(" Email failed:", response.status_code, response.text)
