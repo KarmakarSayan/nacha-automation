@@ -2,7 +2,7 @@ name: NACHA Daily Report
 
 on:
   schedule:
-    - cron: '0 13 * * *'    # 7:30 PM
+    - cron: '0 13 * * *'    # 6:30 PM IST
   workflow_dispatch:
 
 jobs:
@@ -37,5 +37,6 @@ jobs:
           # -------- Email --------
           SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
           RECEIVER_EMAILS: ${{ secrets.RECEIVER_EMAILS }}
+          CC_EMAILS: ${{ secrets.CC_EMAILS }}   
 
         run: python azure_logs.py
