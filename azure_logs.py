@@ -38,19 +38,11 @@ end_utc_str = end_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
 print(f"\nUTC Window: {start_utc} → {end_utc}")
 
 # ================================
-# ----------- QUERIES
+# ----------- QUERIES (SWAPPED)
 # ================================
 
+# QUERY 1 → NOW SUMMARY
 query_1 = f"""
-dependencies
-| where timestamp between (datetime({start_utc_str}) .. datetime({end_utc_str}))
-| where name == "POST /ACHCheckPrescreen/GetReport"
-| where success != true
-| project name, appId, target, success, resultCode, ["TimeStamp(UTC)"] = timestamp
-| order by ["TimeStamp(UTC)"] desc
-"""
-
-query_2 = f"""
 union isfuzzy=true dependencies
 | where timestamp between (datetime({start_utc_str}) .. datetime({end_utc_str}))
 | where name in ("POST /ACHCheckPrescreen/GetReport")
@@ -59,6 +51,16 @@ union isfuzzy=true dependencies
     FailureCount = countif(success == false),
     TotalCount = count()
 | extend SuccessRate = round((SuccessCount * 100.0) / TotalCount, 2)
+"""
+
+# QUERY 2 → NOW FAILURES
+query_2 = f"""
+dependencies
+| where timestamp between (datetime({start_utc_str}) .. datetime({end_utc_str}))
+| where name == "POST /ACHCheckPrescreen/GetReport"
+| where success != true
+| project name, appId, target, success, resultCode, ["TimeStamp(UTC)"] = timestamp
+| order by ["TimeStamp(UTC)"] desc
 """
 
 # ================================
@@ -91,7 +93,7 @@ df1 = remove_timezone(df1)
 df2 = remove_timezone(df2)
 
 # ================================
-# ----------- SAVE EXCEL
+# ----------- SAVE EXCEL (SWAPPED)
 # ================================
 
 folder_path = "Nacha_Daily_reports"
@@ -101,24 +103,25 @@ today_date = datetime.now().strftime("%Y-%m-%d")
 file_path = os.path.join(folder_path, f"Nacha-{today_date}.xlsx")
 
 with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
-    df1.to_excel(writer, sheet_name="Failures", index=False)
-    df2.to_excel(writer, sheet_name="Summary", index=False)
+    df1.to_excel(writer, sheet_name="Summary", index=False)
+    df2.to_excel(writer, sheet_name="Failures", index=False)
 
-    # Format Failures Sheet
-    sheet1 = writer.sheets["Failures"]
+    # Format Summary Sheet (df1)
+    sheet1 = writer.sheets["Summary"]
     for col_idx, col in enumerate(df1.columns, 1):
         max_length = max(df1[col].astype(str).map(len).max(), len(col))
         sheet1.column_dimensions[get_column_letter(col_idx)].width = max_length + 2
 
-    for cell in sheet1["F"]:
-        if cell.row != 1:
-            cell.number_format = "yyyy-mm-dd hh:mm:ss"
-
-    # Format Summary Sheet
-    sheet2 = writer.sheets["Summary"]
+    # Format Failures Sheet (df2)
+    sheet2 = writer.sheets["Failures"]
     for col_idx, col in enumerate(df2.columns, 1):
         max_length = max(df2[col].astype(str).map(len).max(), len(col))
         sheet2.column_dimensions[get_column_letter(col_idx)].width = max_length + 2
+
+    # Apply date format on Failures timestamp column (column F)
+    for cell in sheet2["F"]:
+        if cell.row != 1:
+            cell.number_format = "yyyy-mm-dd hh:mm:ss"
 
 print(f"\nExcel file generated: {file_path}")
 
@@ -132,13 +135,11 @@ client_secret_B = os.getenv("MAIL_CLIENT_SECRET")
 
 sender_email = os.getenv("SENDER_EMAIL")
 receiver_emails = os.getenv("RECEIVER_EMAILS")
-cc_emails = os.getenv("CC_EMAILS")  # 👈 NEW
+cc_emails = os.getenv("CC_EMAILS")
 
-# To Recipients
 email_list = [email.strip() for email in receiver_emails.split(",")]
 to_recipients = [{"emailAddress": {"address": email}} for email in email_list]
 
-# CC Recipients (SAFE)
 cc_recipients = []
 if cc_emails:
     cc_list = [email.strip() for email in cc_emails.split(",")]
@@ -174,7 +175,7 @@ Regards,
 Sayan Karmakar"""
         },
         "toRecipients": to_recipients,
-        "ccRecipients": cc_recipients,  # 👈 ADDED
+        "ccRecipients": cc_recipients,
         "attachments": [
             {
                 "@odata.type": "#microsoft.graph.fileAttachment",
