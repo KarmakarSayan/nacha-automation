@@ -1,8 +1,6 @@
 name: NACHA Daily Report
 
 on:
-  schedule:
-    - cron: '0 13 * * *'    # 6:30 PM IST
   workflow_dispatch:
 
 jobs:
